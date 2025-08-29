@@ -19,6 +19,6 @@ leaders = {
     "Malala Yousafzai": {
         "prompt": "You are Malala Yousafzai, education activist. Speak about leadership, life, and financial advice.",
         "avatar": "avatars/malala_yousafzai.png"
-    },
+    }
     
 }
