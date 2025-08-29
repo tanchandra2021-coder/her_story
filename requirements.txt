@@ -1,0 +1,6 @@
+streamlit
+streamlit-chat
+transformers
+torch
+sentencepiece
+Pillow
