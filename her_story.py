@@ -2,18 +2,25 @@ import streamlit as st
 from streamlit_chat import message
 from leaders import leaders
 from PIL import Image
-from transformers import AutoModelForCausalLM, AutoTokenizer
-import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
 # -----------------------------
-# Initialize local LLM (GPT4All-J)
+# CPU-friendly LLM setup
 # -----------------------------
-model_name = "nomic-ai/gpt4all-j"  # or a locally downloaded LLaMA 2 model
+# Small free model compatible with CPU
+model_name = "nomic-ai/gpt4all-lora-quantized"  # lightweight model
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name)
 
+# Use text-generation pipeline
+generator = pipeline("text-generation", model=model, tokenizer=tokenizer, device=-1)  # device=-1 => CPU
+
+def query_llm(prompt):
+    outputs = generator(prompt, max_new_tokens=200)
+    return outputs[0]["generated_text"]
+
 # -----------------------------
-# Streamlit config
+# Streamlit UI setup
 # -----------------------------
 st.set_page_config(page_title="Her Story", layout="wide")
 
@@ -21,7 +28,7 @@ st.set_page_config(page_title="Her Story", layout="wide")
 bg_image = Image.open("backgrounds/female_leaders_bg.jpg")
 st.image(bg_image, use_column_width=True)
 
-st.title("🌟 Her Story: AI Women's Leadership Platform (Fully Free)")
+st.title("🌟 Her Story: AI Women's Leadership Platform (Free, CPU)")
 
 # Sidebar: select leader
 st.sidebar.header("Choose a Leader")
@@ -41,15 +48,14 @@ if "history" not in st.session_state:
 st.subheader(f"💬 Chat with {selected_leader}")
 user_input = st.text_input("Ask a question or request advice:")
 
-def query_local_llm(prompt_text):
-    inputs = tokenizer(prompt_text, return_tensors="pt")
-    outputs = model.generate(**inputs, max_new_tokens=300)
-    return tokenizer.decode(outputs[0], skip_special_tokens=True)
-
+# Query the LLM
 if user_input:
     prompt = f"{leader_info['prompt']}\nStudent asks: {user_input}\nRespond as {selected_leader}:"
-    answer = query_local_llm(prompt)
-    
+    try:
+        answer = query_llm(prompt)
+    except Exception as e:
+        answer = f"⚠️ Error generating response: {str(e)}"
+
     # Store conversation
     st.session_state.history.append({"user": user_input, "ai": answer})
 
