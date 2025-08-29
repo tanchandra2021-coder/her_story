@@ -2,22 +2,26 @@ import streamlit as st
 from streamlit_chat import message
 from leaders import leaders
 from PIL import Image
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+import requests
 
 # -----------------------------
-# CPU-friendly LLM setup
+# Hugging Face API setup
 # -----------------------------
-# Small free model compatible with CPU
-model_name = "nomic-ai/gpt4all-lora-quantized"  # lightweight model
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name)
+HF_API_URL = "https://api-inference.huggingface.co/models/TheBloke/gpt4all-lora-quantized"  # small free model
+HF_API_TOKEN = ""  # optional for anonymous free usage, but you can add your token if rate-limited
 
-# Use text-generation pipeline
-generator = pipeline("text-generation", model=model, tokenizer=tokenizer, device=-1)  # device=-1 => CPU
+headers = {"Authorization": f"Bearer {HF_API_TOKEN}"} if HF_API_TOKEN else {}
 
 def query_llm(prompt):
-    outputs = generator(prompt, max_new_tokens=200)
-    return outputs[0]["generated_text"]
+    payload = {"inputs": prompt, "parameters": {"max_new_tokens": 200}}
+    try:
+        response = requests.post(HF_API_URL, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+        outputs = response.json()
+        # Hugging Face API returns a list of dicts with 'generated_text'
+        return outputs[0]["generated_text"]
+    except Exception as e:
+        return f"⚠️ Error generating response: {str(e)}"
 
 # -----------------------------
 # Streamlit UI setup
@@ -28,7 +32,7 @@ st.set_page_config(page_title="Her Story", layout="wide")
 bg_image = Image.open("backgrounds/female_leaders_bg.jpg")
 st.image(bg_image, use_column_width=True)
 
-st.title("🌟 Her Story: AI Women's Leadership Platform (Free, CPU)")
+st.title("🌟 Her Story: AI Women's Leadership Platform (Free, Hugging Face API)")
 
 # Sidebar: select leader
 st.sidebar.header("Choose a Leader")
@@ -51,10 +55,7 @@ user_input = st.text_input("Ask a question or request advice:")
 # Query the LLM
 if user_input:
     prompt = f"{leader_info['prompt']}\nStudent asks: {user_input}\nRespond as {selected_leader}:"
-    try:
-        answer = query_llm(prompt)
-    except Exception as e:
-        answer = f"⚠️ Error generating response: {str(e)}"
+    answer = query_llm(prompt)
 
     # Store conversation
     st.session_state.history.append({"user": user_input, "ai": answer})
@@ -63,3 +64,4 @@ if user_input:
 for chat in st.session_state.history:
     message(chat["user"], is_user=True)
     message(chat["ai"], is_user=False)
+
