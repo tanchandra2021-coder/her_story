@@ -60,8 +60,6 @@ if "history" not in st.session_state:
     st.session_state.history = []  # list of dicts: {sender:'user'|'bot', leader, text}
 if "selected" not in st.session_state:
     st.session_state.selected = DEFAULT_LEADER
-if "input" not in st.session_state:
-    st.session_state.input = ""
 
 # ---------- CSS for modern chat ----------
 st.markdown(
@@ -70,13 +68,13 @@ st.markdown(
     .chat-container {max-width:800px;}
     .msg-user {
         background: linear-gradient(90deg,#6366f1,#7c3aed);
-        color:white; padding:10px 14px; border-radius:14px; max-width:75%; margin-left:auto;
+        color:white; padding:10px 14px; border-radius:14px; max-width:75%; margin-left:auto; margin-bottom:6px;
     }
     .msg-bot {
-        background: #f3f4f6; padding:10px 14px; border-radius:14px; max-width:75%; margin-right:auto;
+        background: #f3f4f6; padding:10px 14px; border-radius:14px; max-width:75%; margin-right:auto; margin-bottom:6px;
         border:1px solid #e5e7eb;
     }
-    .leader-card {border-radius:14px; padding:10px; margin-bottom:8px; transition: box-shadow 0.2s ease;}
+    .leader-card {border-radius:14px; padding:10px; margin-bottom:8px; transition: box-shadow 0.2s ease; display:flex; align-items:center; gap:10px;}
     .leader-card:hover {box-shadow:0 8px 24px rgba(0,0,0,0.08);}
     .avatar {width:50px; height:50px; border-radius:12px; object-fit:cover;}
     .small {font-size:12px; color:#6b7280;}
@@ -96,7 +94,7 @@ with col1:
 
     for idx, (name, meta) in enumerate(LEADERS.items()):
         st.markdown(
-            f"<div class='leader-card' style='display:flex;align-items:center;gap:10px'>"
+            f"<div class='leader-card'>"
             f"<img class='avatar' src='{meta['img']}'/>"
             f"<div><b>{name}</b><br><span class='small'>{meta['role']}</span></div>"
             f"</div>",
@@ -115,7 +113,7 @@ with col1:
     ]
     for i, q in enumerate(quicks):
         if st.button(q, key=f"quick_{i}"):
-            st.session_state.input = q
+            st.session_state.input_text = q  # store quick prompt in session
 
     st.markdown("---")
     st.markdown(
@@ -145,15 +143,14 @@ with col2:
                         unsafe_allow_html=True
                     )
 
-    # ---------- Input ----------
-    user_input = st.text_area(" ", value=st.session_state.input, placeholder="Type your question...", key="input_area", height=90)
-    if st.button("Send", key="send_button"):
-        msg = st.session_state.input.strip()
-        if msg:
+    # -------- Input using st.form for reliable submission --------
+    with st.form(key="chat_form", clear_on_submit=True):
+        user_input = st.text_area(" ", value=st.session_state.get("input_text", ""), placeholder="Type your question...", height=90)
+        submitted = st.form_submit_button("Send")
+        if submitted and user_input.strip():
+            msg = user_input.strip()
             st.session_state.history.append({"sender": "user", "text": msg})
-            st.session_state.input = ""
-            # pick random response
             reply = random.choice(LEADERS[sel]["responses"])
             st.session_state.history.append({"sender": "bot", "text": reply, "leader": sel})
+            st.session_state.input_text = ""  # clear quick prompt
             st.experimental_rerun()
-
