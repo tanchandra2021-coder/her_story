@@ -1,6 +1,2 @@
-streamlit
-streamlit-chat
-transformers
-torch
-sentencepiece
-Pillow
+streamlit>=1.22
+Pillow>=9.0.0
