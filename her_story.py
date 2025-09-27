@@ -156,3 +156,4 @@ with col2:
             reply = random.choice(LEADERS[sel]["responses"])
             st.session_state.history.append({"sender": "bot", "text": reply, "leader": sel})
             st.experimental_rerun()
+
