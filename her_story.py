@@ -1,11 +1,10 @@
-# app.py
 import streamlit as st
 from PIL import Image
 import random
 
 st.set_page_config(page_title="Finance Advisors — Women Leaders", page_icon="💼", layout="wide")
 
-# -------- Leader data and persona responses --------
+# ---------- Leader data ----------
 LEADERS = {
     "Michelle Obama": {
         "img": "https://upload.wikimedia.org/wikipedia/commons/8/8d/Michelle_Obama_official_portrait.jpg",
@@ -56,7 +55,7 @@ LEADERS = {
 
 DEFAULT_LEADER = list(LEADERS.keys())[0]
 
-# -------- Session state setup --------
+# ---------- Session state ----------
 if "history" not in st.session_state:
     st.session_state.history = []  # list of dicts: {sender:'user'|'bot', leader, text}
 if "selected" not in st.session_state:
@@ -64,21 +63,49 @@ if "selected" not in st.session_state:
 if "input" not in st.session_state:
     st.session_state.input = ""
 
-# -------- Layout: left sidebar (advisors) and main chat --------
+# ---------- CSS for modern chat ----------
+st.markdown(
+    """
+    <style>
+    .chat-container {max-width:800px;}
+    .msg-user {
+        background: linear-gradient(90deg,#6366f1,#7c3aed);
+        color:white; padding:10px 14px; border-radius:14px; max-width:75%; margin-left:auto;
+    }
+    .msg-bot {
+        background: #f3f4f6; padding:10px 14px; border-radius:14px; max-width:75%; margin-right:auto;
+        border:1px solid #e5e7eb;
+    }
+    .leader-card {border-radius:14px; padding:10px; margin-bottom:8px; transition: box-shadow 0.2s ease;}
+    .leader-card:hover {box-shadow:0 8px 24px rgba(0,0,0,0.08);}
+    .avatar {width:50px; height:50px; border-radius:12px; object-fit:cover;}
+    .small {font-size:12px; color:#6b7280;}
+    .disclaimer {font-size:13px; color:#374151; background:#fffbf0; padding:8px; border-radius:8px; border:1px solid #fcefc7;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ---------- Layout ----------
 col1, col2 = st.columns([1.2, 3])
 
+# ---------- Left sidebar ----------
 with col1:
     st.markdown("## Finance Advisors")
     st.markdown("Famous leaders — finance & education\n---")
 
-    for name, meta in LEADERS.items():
-        is_selected = (st.session_state.selected == name)
-        st.image(meta["img"], width=60)
-        st.markdown(f"**{name}**\n{meta['role']}")
-        if st.button(f"Select {name}", key="select_" + name):
+    for idx, (name, meta) in enumerate(LEADERS.items()):
+        st.markdown(
+            f"<div class='leader-card' style='display:flex;align-items:center;gap:10px'>"
+            f"<img class='avatar' src='{meta['img']}'/>"
+            f"<div><b>{name}</b><br><span class='small'>{meta['role']}</span></div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+        if st.button(f"Select {name}", key=f"select_{idx}"):
             st.session_state.selected = name
-        st.markdown("---")
 
+    st.markdown("---")
     st.markdown("**Quick prompts**")
     quicks = [
         "How should a beginner start investing $1,000?",
@@ -86,43 +113,46 @@ with col1:
         "How should I think about risk with equities vs bonds?",
         "Is crypto a good hedge for inflation?",
     ]
-    for q in quicks:
-        if st.button(q, key="quick_" + q[:10]):
+    for i, q in enumerate(quicks):
+        if st.button(q, key=f"quick_{i}"):
             st.session_state.input = q
 
+    st.markdown("---")
     st.markdown(
-        "⚠️ **Disclaimer:** Replies are AI-generated simulations and not actual statements by the pictured individuals."
+        "<div class='disclaimer'><b>Disclaimer:</b> Replies are AI-generated simulations and not actual statements by the pictured individuals.</div>",
+        unsafe_allow_html=True
     )
 
+# ---------- Right main chat ----------
 with col2:
-    # header
     sel = st.session_state.selected
     st.image(LEADERS[sel]["img"], width=80)
     st.markdown(f"### {sel}")
     st.markdown(f"{LEADERS[sel]['role']} • Finance & Education\n---")
 
-    # Chat area
     chat_container = st.container()
     with chat_container:
-        if len(st.session_state.history) == 0:
+        if not st.session_state.history:
             st.markdown("Ask anything about finance. Your selected advisor will respond in their voice.")
         else:
             for entry in st.session_state.history:
                 if entry["sender"] == "user":
-                    st.markdown(f"**You:** {entry['text']}")
+                    st.markdown(f"<div class='msg-user'>{entry['text']}</div>", unsafe_allow_html=True)
                 else:
-                    leader = entry.get("leader", st.session_state.selected)
-                    st.markdown(f"**{leader}:** {entry['text']}")
+                    leader = entry.get("leader", sel)
+                    st.markdown(
+                        f"<div class='msg-bot'><b>{leader}:</b> {entry['text']}</div>",
+                        unsafe_allow_html=True
+                    )
 
-    st.markdown("---")
-    # Input
+    # ---------- Input ----------
     user_input = st.text_area(" ", value=st.session_state.input, placeholder="Type your question...", key="input_area", height=90)
     if st.button("Send", key="send_button"):
         msg = st.session_state.input.strip()
         if msg:
             st.session_state.history.append({"sender": "user", "text": msg})
             st.session_state.input = ""
-            # pick a random response from the selected leader
-            reply = random.choice(LEADERS[st.session_state.selected]["responses"])
-            st.session_state.history.append({"sender": "bot", "text": reply, "leader": st.session_state.selected})
+            # pick random response
+            reply = random.choice(LEADERS[sel]["responses"])
+            st.session_state.history.append({"sender": "bot", "text": reply, "leader": sel})
             st.experimental_rerun()
