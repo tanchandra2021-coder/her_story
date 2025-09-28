@@ -140,4 +140,3 @@ Answer:"""
 
             # Clear input field
             st.session_state.input_text = ""
-
