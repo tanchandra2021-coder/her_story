@@ -1,6 +1,5 @@
 import streamlit as st
 from transformers import pipeline
-import random
 
 st.set_page_config(page_title="Finance Advisors", layout="wide")
 
@@ -141,6 +140,9 @@ Answer:"""
             output = chatbot_model(prompt, max_length=200, do_sample=True, temperature=0.7)[0]["generated_text"]
             reply = output.replace(prompt, "").strip()
 
+            # Append bot reply
             st.session_state.history.append({"sender": "bot", "text": reply, "leader": sel})
+
+            # Clear input field
             st.session_state.input_text = ""
-            st.experimental_rerun()
+
