@@ -27,15 +27,7 @@ LEADERS = {
     },
 }
 
-PERSONALITIES = {
-    "Michelle Obama": "Policy-minded, empathetic, cordial mentor. Speaks supportively and encourages learning.",
-    "Frida Kahlo": "Artistic, reflective, metaphor-driven, supportive.",
-    "Marie Curie": "Scientific, precise, evidence-based, cordial.",
-    "Rosa Parks": "Calm, principled, clear, encouraging tone.",
-    "Malala Yousafzai": "Educator, clear, empowering, warm tone."
-}
-
-DEFAULT_LEADER = list(LEADERS.keys())[0]
+DEFAULT_LEADER = "Michelle Obama"
 
 # ---------- Load GPT-Neo 1.3B ----------
 @st.cache_resource
@@ -145,4 +137,5 @@ Answer:"""
 
             # Clear input field
             st.session_state.input_text = ""
+
 
