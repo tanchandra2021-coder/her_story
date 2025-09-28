@@ -1,142 +1,124 @@
 import streamlit as st
 from transformers import pipeline
+from PIL import Image
+import requests
+from io import BytesIO
+import random
 
-st.set_page_config(page_title="Finance Advisors", layout="wide")
+st.set_page_config(page_title="Finance Advisors Chat", layout="wide")
 
-# ---------- Leader data ----------
+# -------------------
+# Leader metadata
+# -------------------
 LEADERS = {
     "Michelle Obama": {
-        "img": "https://upload.wikimedia.org/wikipedia/commons/8/8d/Michelle_Obama_official_portrait.jpg",
-        "role": "Policy-minded, empathetic mentor",
+        "personality": "Policy-minded, empathetic mentor",
+        "avatar": "https://upload.wikimedia.org/wikipedia/commons/8/8d/Michelle_Obama_official_portrait.jpg"
     },
     "Frida Kahlo": {
-        "img": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Frida_Kahlo_1941.jpg",
-        "role": "Reflective, artistic, metaphor-driven",
+        "personality": "Reflective, artistic, metaphor-driven",
+        "avatar": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Frida_Kahlo_1941.jpg"
     },
     "Marie Curie": {
-        "img": "https://upload.wikimedia.org/wikipedia/commons/6/6d/Marie_Curie_c1920.jpg",
-        "role": "Scientific, evidence-first",
+        "personality": "Scientific, evidence-first",
+        "avatar": "https://upload.wikimedia.org/wikipedia/commons/6/6d/Marie_Curie_c1920.jpg"
     },
     "Rosa Parks": {
-        "img": "https://upload.wikimedia.org/wikipedia/commons/7/7c/Rosa_Parks.jpg",
-        "role": "Calm, principled, concise",
+        "personality": "Calm, principled, concise",
+        "avatar": "https://upload.wikimedia.org/wikipedia/commons/7/7c/Rosa_Parks.jpg"
     },
     "Malala Yousafzai": {
-        "img": "https://upload.wikimedia.org/wikipedia/commons/1/1c/Malala_Yousafzai_at_NYU_2013_cropped.jpg",
-        "role": "Educator, clear, empowering",
-    },
+        "personality": "Educator, clear, empowering",
+        "avatar": "https://upload.wikimedia.org/wikipedia/commons/1/1c/Malala_Yousafzai_at_NYU_2013_cropped.jpg"
+    }
 }
 
-DEFAULT_LEADER = "Michelle Obama"
-
-# ---------- Load GPT-Neo 1.3B ----------
-@st.cache_resource
+# -------------------
+# Load HF model
+# -------------------
+@st.cache_resource(show_spinner=False)
 def load_model():
     return pipeline("text-generation", model="EleutherAI/gpt-neo-1.3B", device=-1)
 
-chatbot_model = load_model()
+model = load_model()
 
-# ---------- Session state ----------
+# -------------------
+# Helper: Get avatar image
+# -------------------
+def get_avatar(url):
+    try:
+        response = requests.get(url)
+        img = Image.open(BytesIO(response.content)).convert("RGB")
+        img.thumbnail((80, 80))
+        return img
+    except:
+        return Image.new("RGB", (80, 80), color=(200, 200, 200))
+
+# -------------------
+# Initialize session state
+# -------------------
 if "history" not in st.session_state:
     st.session_state.history = []
-if "selected" not in st.session_state:
-    st.session_state.selected = DEFAULT_LEADER
+
 if "input_text" not in st.session_state:
     st.session_state.input_text = ""
 
-# ---------- CSS ----------
-st.markdown("""
-<style>
-.msg-user {
-    background: linear-gradient(90deg,#6366f1,#7c3aed);
-    color:white; padding:10px 14px; border-radius:14px; max-width:75%; margin-left:auto; margin-bottom:6px;
-}
-.msg-bot {
-    background: #f3f4f6; padding:10px 14px; border-radius:14px; max-width:75%; margin-right:auto; margin-bottom:6px;
-    border:1px solid #e5e7eb;
-}
-.leader-card {border-radius:14px; padding:10px; margin-bottom:8px; transition: box-shadow 0.2s ease; display:flex; align-items:center; gap:10px;}
-.leader-card:hover {box-shadow:0 8px 24px rgba(0,0,0,0.08);}
-.avatar {width:50px; height:50px; border-radius:12px; object-fit:cover;}
-.small {font-size:12px; color:#6b7280;}
-.disclaimer {font-size:13px; color:#374151; background:#fffbf0; padding:8px; border-radius:8px; border:1px solid #fcefc7;}
-</style>
-""", unsafe_allow_html=True)
+# -------------------
+# Sidebar
+# -------------------
+st.sidebar.title("Finance Advisors")
+advisor_selected = st.sidebar.selectbox(
+    "Choose a leader", list(LEADERS.keys())
+)
 
-# ---------- Layout ----------
-col1, col2 = st.columns([1.2, 3])
+st.sidebar.markdown(f"**{advisor_selected}** — {LEADERS[advisor_selected]['personality']}")
+st.sidebar.markdown("Quick prompts:")
+quick_prompts = [
+    "How should I start investing?",
+    "What's a safe way to learn about crypto?",
+    "How do I budget effectively?",
+    "Advice for saving for college?",
+    "Tips for beginner investors?"
+]
+for q in quick_prompts:
+    if st.sidebar.button(q, key=f"quick_{q[:10]}"):
+        st.session_state.input_text = q
 
-# ---------- Sidebar ----------
-with col1:
-    st.markdown("## Finance Advisors")
-    st.markdown("Famous leaders — finance & education\n---")
+st.sidebar.markdown(
+    "Disclaimer: Replies are AI-generated simulations and not actual statements by the pictured individuals."
+)
 
-    for idx, (name, meta) in enumerate(LEADERS.items()):
-        st.markdown(
-            f"<div class='leader-card'>"
-            f"<img class='avatar' src='{meta['img']}'/>"
-            f"<div><b>{name}</b><br><span class='small'>{meta['role']}</span></div>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-        if st.button(f"Select {name}", key=f"select_{idx}"):
-            st.session_state.selected = name
+# -------------------
+# Chat input
+# -------------------
+st.title("💬 Chat with a Finance Advisor")
 
-    st.markdown("---")
-    st.markdown("**Quick prompts**")
-    quicks = [
-        "How should a beginner start investing $1,000?",
-        "What is dollar-cost averaging and why is it useful?",
-        "How should I think about risk with equities vs bonds?",
-        "Is crypto a good hedge for inflation?",
-    ]
-    for i, q in enumerate(quicks):
-        if st.button(q, key=f"quick_{i}"):
-            st.session_state.input_text = q
+user_input = st.text_input("Type your question here:", value=st.session_state.input_text)
 
-    st.markdown("---")
-    st.markdown("<div class='disclaimer'><b>Disclaimer:</b> Replies are AI-generated simulations and not actual statements by the pictured individuals.</div>", unsafe_allow_html=True)
+# -------------------
+# Handle chat
+# -------------------
+if user_input:
+    prompt = f"You are {advisor_selected}, a famous female leader and mentor. Speak cordially and in your personality. You give clear, accurate, concise finance advice (stocks, crypto, investing, saving, budgeting). Answer directly and stay on topic, avoid repetition, avoid unrelated info.\n\nUser: {user_input}\nAdvisor:"
+    response = model(prompt, max_new_tokens=256, do_sample=True, temperature=0.7)[0]["generated_text"]
+    # Remove prompt from output
+    response = response.replace(prompt, "").strip()
 
-# ---------- Chat ----------
-with col2:
-    sel = st.session_state.selected
-    st.image(LEADERS[sel]["img"], width=80)
-    st.subheader(sel)
-    st.write(LEADERS[sel]["role"])
+    # Append to history
+    st.session_state.history.append({"sender": "user", "text": user_input})
+    st.session_state.history.append({"sender": "bot", "text": response, "avatar": get_avatar(LEADERS[advisor_selected]['avatar'])})
 
-    # Display chat history
-    for msg in st.session_state.history:
-        if msg["sender"] == "user":
-            st.markdown(f"<div class='msg-user'>{msg['text']}</div>", unsafe_allow_html=True)
-        else:
-            leader = msg.get("leader", sel)
-            st.markdown(f"<div class='msg-bot'><b>{leader}:</b> {msg['text']}</div>", unsafe_allow_html=True)
+    st.session_state.input_text = ""  # clear input
 
-    # Input
-    user_input = st.text_area("Type your question here", value=st.session_state.get("input_text", ""), height=100)
-    if st.button("Send"):
-        if user_input.strip() != "":
-            # Append user message
-            st.session_state.history.append({"sender": "user", "text": user_input.strip()})
-
-            # Personality-driven prompt
-            prompt = f"""
-You are {sel}, a famous female leader and mentor. Speak cordially and in your personality.
-You give clear, accurate, concise finance advice (stocks, crypto, investing, saving, budgeting).
-Answer directly and stay on topic, avoid repetition, avoid unrelated info.
-
-User asks: {user_input.strip()}
-Answer:"""
-
-            # Generate response safely
-            try:
-                output = chatbot_model(prompt, max_length=200, do_sample=True, temperature=0.7)[0]["generated_text"]
-                reply = output.replace(prompt, "").strip()
-            except Exception:
-                reply = "Sorry, I couldn't generate a response right now."
-
-            # Append bot reply
-            st.session_state.history.append({"sender": "bot", "text": reply, "leader": sel})
-
-            # Clear input field
-            st.session_state.input_text = ""
+# -------------------
+# Display chat
+# -------------------
+for chat in st.session_state.history:
+    if chat["sender"] == "user":
+        st.markdown(f"**You:** {chat['text']}")
+    else:
+        cols = st.columns([1, 5])
+        with cols[0]:
+            st.image(chat["avatar"])
+        with cols[1]:
+            st.markdown(f"**{advisor_selected}:** {chat['text']}")
