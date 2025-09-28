@@ -1,4 +1,5 @@
 import streamlit as st
+from transformers import pipeline
 import random
 
 st.set_page_config(page_title="Finance Advisors", layout="wide")
@@ -8,51 +9,41 @@ LEADERS = {
     "Michelle Obama": {
         "img": "https://upload.wikimedia.org/wikipedia/commons/8/8d/Michelle_Obama_official_portrait.jpg",
         "role": "Policy-minded, empathetic mentor",
-        "responses": [
-            "Start small, invest in yourself first. Budget wisely, then explore low-cost index funds.",
-            "Financial literacy is key — track spending, save consistently, and think long-term.",
-            "Empowerment in finance starts with education. Ask questions, stay informed, and plan ahead."
-        ],
     },
     "Frida Kahlo": {
         "img": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Frida_Kahlo_1941.jpg",
         "role": "Reflective, artistic, metaphor-driven",
-        "responses": [
-            "Investing is like painting a canvas — start with bold strokes and refine over time.",
-            "Your financial journey should tell a story; diversify your palette of investments.",
-            "Think of your savings as seeds in a garden — nurture them patiently for growth."
-        ],
     },
     "Marie Curie": {
         "img": "https://upload.wikimedia.org/wikipedia/commons/6/6d/Marie_Curie_c1920.jpg",
         "role": "Scientific, evidence-first",
-        "responses": [
-            "Always analyze data before investing — understand risk vs reward clearly.",
-            "Use precise calculations: compound interest works best over time with consistent contributions.",
-            "Diversify methodically. Scientific approach reduces surprises and uncertainty."
-        ],
     },
     "Rosa Parks": {
         "img": "https://upload.wikimedia.org/wikipedia/commons/7/7c/Rosa_Parks.jpg",
         "role": "Calm, principled, concise",
-        "responses": [
-            "Stand firm on your financial principles, start with disciplined budgeting.",
-            "Focus on practical, small steps: save, invest, and stay consistent.",
-            "Calm and deliberate action is more powerful than chasing trends."
-        ],
     },
     "Malala Yousafzai": {
         "img": "https://upload.wikimedia.org/wikipedia/commons/1/1c/Malala_Yousafzai_at_NYU_2013_cropped.jpg",
         "role": "Educator, clear, empowering",
-        "responses": [
-            "Education is the foundation — learn finance basics before investing.",
-            "Empower yourself: track expenses, understand investments, and ask questions.",
-            "Small, consistent actions today will lead to greater financial independence tomorrow."
-        ],
     },
 }
 
+PERSONALITIES = {
+    "Michelle Obama": "Policy-minded, empathetic, cordial mentor. Speaks supportively and encourages learning.",
+    "Frida Kahlo": "Artistic, reflective, metaphor-driven, supportive.",
+    "Marie Curie": "Scientific, precise, evidence-based, cordial.",
+    "Rosa Parks": "Calm, principled, clear, encouraging tone.",
+    "Malala Yousafzai": "Educator, clear, empowering, warm tone."
+}
+
 DEFAULT_LEADER = list(LEADERS.keys())[0]
+
+# ---------- Load the model ----------
+@st.cache_resource
+def load_model():
+    return pipeline("text-generation", model="EleutherAI/gpt-neo-125M", device=-1)
+
+chatbot_model = load_model()
 
 # ---------- Session state ----------
 if "history" not in st.session_state:
@@ -115,14 +106,14 @@ with col1:
     st.markdown("---")
     st.markdown("<div class='disclaimer'><b>Disclaimer:</b> Replies are AI-generated simulations and not actual statements by the pictured individuals.</div>", unsafe_allow_html=True)
 
-# ---------- Main Chat ----------
+# ---------- Chat ----------
 with col2:
     sel = st.session_state.selected
     st.image(LEADERS[sel]["img"], width=80)
     st.subheader(sel)
     st.write(LEADERS[sel]["role"])
 
-    # Chat display
+    # Display chat history
     for msg in st.session_state.history:
         if msg["sender"] == "user":
             st.markdown(f"<div class='msg-user'>{msg['text']}</div>", unsafe_allow_html=True)
@@ -134,8 +125,16 @@ with col2:
     user_input = st.text_area("Type your question here", value=st.session_state.get("input_text", ""), height=100)
     if st.button("Send"):
         if user_input.strip() != "":
+            # Append user message
             st.session_state.history.append({"sender": "user", "text": user_input.strip()})
-            reply = random.choice(LEADERS[sel]["responses"])
+
+            # Generate personality-driven response
+            prompt = f"You are {sel}. {PERSONALITIES[sel]}\nUser asks: {user_input.strip()}\nAnswer warmly and helpfully:"
+            output = chatbot_model(prompt, max_length=150, do_sample=True, temperature=0.7)[0]["generated_text"]
+            # remove prompt from output
+            reply = output.replace(prompt, "").strip()
+
             st.session_state.history.append({"sender": "bot", "text": reply, "leader": sel})
-            st.session_state.input_text = ""  # clear quick prompt
+            st.session_state.input_text = ""
             st.experimental_rerun()
+
