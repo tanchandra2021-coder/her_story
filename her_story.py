@@ -1,124 +1,136 @@
+# her_story.py
+
 import streamlit as st
-from transformers import pipeline
-from PIL import Image
-import requests
-from io import BytesIO
-import random
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
 
-st.set_page_config(page_title="Finance Advisors Chat", layout="wide")
-
-# -------------------
-# Leader metadata
-# -------------------
-LEADERS = {
-    "Michelle Obama": {
-        "personality": "Policy-minded, empathetic mentor",
-        "avatar": "https://upload.wikimedia.org/wikipedia/commons/8/8d/Michelle_Obama_official_portrait.jpg"
-    },
-    "Frida Kahlo": {
-        "personality": "Reflective, artistic, metaphor-driven",
-        "avatar": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Frida_Kahlo_1941.jpg"
-    },
-    "Marie Curie": {
-        "personality": "Scientific, evidence-first",
-        "avatar": "https://upload.wikimedia.org/wikipedia/commons/6/6d/Marie_Curie_c1920.jpg"
-    },
-    "Rosa Parks": {
-        "personality": "Calm, principled, concise",
-        "avatar": "https://upload.wikimedia.org/wikipedia/commons/7/7c/Rosa_Parks.jpg"
-    },
-    "Malala Yousafzai": {
-        "personality": "Educator, clear, empowering",
-        "avatar": "https://upload.wikimedia.org/wikipedia/commons/1/1c/Malala_Yousafzai_at_NYU_2013_cropped.jpg"
-    }
-}
-
-# -------------------
-# Load HF model
-# -------------------
-@st.cache_resource(show_spinner=False)
-def load_model():
-    return pipeline("text-generation", model="EleutherAI/gpt-neo-1.3B", device=-1)
-
-model = load_model()
-
-# -------------------
-# Helper: Get avatar image
-# -------------------
-def get_avatar(url):
-    try:
-        response = requests.get(url)
-        img = Image.open(BytesIO(response.content)).convert("RGB")
-        img.thumbnail((80, 80))
-        return img
-    except:
-        return Image.new("RGB", (80, 80), color=(200, 200, 200))
-
-# -------------------
+# -------------------------
 # Initialize session state
-# -------------------
+# -------------------------
 if "history" not in st.session_state:
     st.session_state.history = []
 
 if "input_text" not in st.session_state:
     st.session_state.input_text = ""
 
-# -------------------
-# Sidebar
-# -------------------
-st.sidebar.title("Finance Advisors")
-advisor_selected = st.sidebar.selectbox(
-    "Choose a leader", list(LEADERS.keys())
+if "selected_leader" not in st.session_state:
+    st.session_state.selected_leader = "Michelle Obama"
+
+# -------------------------
+# Define leader personalities
+# -------------------------
+LEADERS = {
+    "Michelle Obama": {
+        "description": "Policy-minded, empathetic mentor",
+        "prompt_intro": "You are Michelle Obama, a policy-minded and empathetic mentor. Speak cordially and give clear, accurate finance advice. Answer directly and stay on topic, avoid repetition, avoid unrelated info."
+    },
+    "Frida Kahlo": {
+        "description": "Reflective, artistic, metaphor-driven",
+        "prompt_intro": "You are Frida Kahlo, a reflective, artistic mentor. Speak cordially, use metaphors, and give clear finance advice."
+    },
+    "Marie Curie": {
+        "description": "Scientific, evidence-first",
+        "prompt_intro": "You are Marie Curie, scientific and evidence-first. Speak cordially and give clear, data-backed finance advice."
+    },
+    "Rosa Parks": {
+        "description": "Calm, principled, concise",
+        "prompt_intro": "You are Rosa Parks, calm, principled, and concise. Give direct finance advice in a cordial tone."
+    },
+    "Malala Yousafzai": {
+        "description": "Educator, clear, empowering",
+        "prompt_intro": "You are Malala Yousafzai, a clear and empowering educator. Give cordial, actionable finance advice."
+    }
+}
+
+# -------------------------
+# Load Hugging Face model
+# -------------------------
+@st.cache_resource(show_spinner=True)
+def load_model():
+    model_name = "EleutherAI/gpt-j-6B"  # Free, capable model
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name)
+    model.eval()
+    return tokenizer, model
+
+tokenizer, model = load_model()
+
+# -------------------------
+# Helper: Generate response
+# -------------------------
+def generate_response(leader, user_input):
+    prompt_intro = LEADERS[leader]["prompt_intro"]
+    prompt = f"{prompt_intro}\n\nUser: {user_input}\n{leader}:"
+    
+    try:
+        inputs = tokenizer(prompt, return_tensors="pt")
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=150,
+                pad_token_id=tokenizer.eos_token_id,
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.9
+            )
+        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        # Remove the prompt from response
+        response = response.replace(prompt, "").strip()
+    except Exception as e:
+        response = f"Sorry, something went wrong: {e}"
+
+    return response
+
+# -------------------------
+# Streamlit UI
+# -------------------------
+st.title("Famous Leaders — Finance & Education Chatbot")
+
+# Leader selection
+leader = st.selectbox(
+    "Select a leader:",
+    list(LEADERS.keys()),
+    index=list(LEADERS.keys()).index(st.session_state.selected_leader)
 )
+st.session_state.selected_leader = leader
 
-st.sidebar.markdown(f"**{advisor_selected}** — {LEADERS[advisor_selected]['personality']}")
-st.sidebar.markdown("Quick prompts:")
-quick_prompts = [
-    "How should I start investing?",
-    "What's a safe way to learn about crypto?",
-    "How do I budget effectively?",
-    "Advice for saving for college?",
-    "Tips for beginner investors?"
-]
-for q in quick_prompts:
-    if st.sidebar.button(q, key=f"quick_{q[:10]}"):
-        st.session_state.input_text = q
+st.markdown(f"**{leader}** — {LEADERS[leader]['description']}")
 
-st.sidebar.markdown(
-    "Disclaimer: Replies are AI-generated simulations and not actual statements by the pictured individuals."
-)
-
-# -------------------
 # Chat input
-# -------------------
-st.title("💬 Chat with a Finance Advisor")
+st.text_input(
+    "Type your question here:",
+    key="input_text"
+)
 
-user_input = st.text_input("Type your question here:", value=st.session_state.input_text)
+# Quick prompts
+QUICK_PROMPTS = [
+    "How do I start investing?",
+    "What is financial literacy?",
+    "How should I budget my money?",
+    "Advice on stocks vs crypto?",
+]
 
-# -------------------
-# Handle chat
-# -------------------
-if user_input:
-    prompt = f"You are {advisor_selected}, a famous female leader and mentor. Speak cordially and in your personality. You give clear, accurate, concise finance advice (stocks, crypto, investing, saving, budgeting). Answer directly and stay on topic, avoid repetition, avoid unrelated info.\n\nUser: {user_input}\nAdvisor:"
-    response = model(prompt, max_new_tokens=256, do_sample=True, temperature=0.7)[0]["generated_text"]
-    # Remove prompt from output
-    response = response.replace(prompt, "").strip()
+st.markdown("**Quick prompts:**")
+cols = st.columns(len(QUICK_PROMPTS))
+for i, prompt in enumerate(QUICK_PROMPTS):
+    if cols[i].button(prompt, key=f"quick_{i}"):
+        st.session_state.input_text = prompt
 
-    # Append to history
-    st.session_state.history.append({"sender": "user", "text": user_input})
-    st.session_state.history.append({"sender": "bot", "text": response, "avatar": get_avatar(LEADERS[advisor_selected]['avatar'])})
+# Generate response button
+if st.button("Ask"):
+    user_input = st.session_state.input_text.strip()
+    if user_input != "":
+        response = generate_response(leader, user_input)
+        st.session_state.history.append({"sender": "user", "text": user_input})
+        st.session_state.history.append({"sender": "bot", "text": response})
+        st.session_state.input_text = ""  # clear input
+    else:
+        st.warning("Please type a question.")
 
-    st.session_state.input_text = ""  # clear input
-
-# -------------------
-# Display chat
-# -------------------
+# Display chat history
 for chat in st.session_state.history:
     if chat["sender"] == "user":
         st.markdown(f"**You:** {chat['text']}")
     else:
-        cols = st.columns([1, 5])
-        with cols[0]:
-            st.image(chat["avatar"])
-        with cols[1]:
-            st.markdown(f"**{advisor_selected}:** {chat['text']}")
+        st.markdown(f"**{leader}:** {chat['text']}")
+
