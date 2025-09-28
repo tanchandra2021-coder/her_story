@@ -2,59 +2,72 @@ import streamlit as st
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 
-# Session state
+# -------------------------------
+# App configuration
+# -------------------------------
+st.set_page_config(page_title="Her Story Chat", page_icon="💬")
+
+st.title("Her Story Chatbot 💬")
+
+# -------------------------------
+# Session state initialization
+# -------------------------------
 if "history" not in st.session_state:
     st.session_state.history = []
 
 if "input_text" not in st.session_state:
     st.session_state.input_text = ""
 
-# Leader personalities
-LEADERS = {
-    "Michelle Obama": "You are Michelle Obama, empathetic mentor. Give cordial finance advice.",
-    "Frida Kahlo": "You are Frida Kahlo, reflective and artistic. Give finance advice using metaphors."
-}
+# -------------------------------
+# Model loading
+# -------------------------------
+MODEL_NAME = "EleutherAI/gpt-neo-125M"  # Small, safe for free-tier
 
-# Leader selection
-leader = st.selectbox("Select a leader:", list(LEADERS.keys()))
-
-# Input
-st.text_input("Ask a question:", key="input_text")
-
-# Lazy load model only on first generate
 @st.cache_resource
 def load_model():
-    tokenizer = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-1.3B")
-    model = AutoModelForCausalLM.from_pretrained("EleutherAI/gpt-neo-1.3B")
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME)
     model.eval()
     return tokenizer, model
 
-def generate_response(prompt):
-    tokenizer, model = load_model()
-    inputs = tokenizer(prompt, return_tensors="pt")
+tokenizer, model = load_model()
+
+# -------------------------------
+# Chat input
+# -------------------------------
+st.session_state.input_text = st.text_input(
+    "You:", value=st.session_state.input_text, key="input_box"
+)
+
+if st.session_state.input_text:
+    user_text = st.session_state.input_text.strip()
+    st.session_state.history.append({"sender": "user", "text": user_text})
+
+    # ---------------------------
+    # Generate bot response
+    # ---------------------------
+    input_ids = tokenizer.encode(user_text + tokenizer.eos_token, return_tensors="pt")
     with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=150,
+        output_ids = model.generate(
+            input_ids,
+            max_new_tokens=100,
             pad_token_id=tokenizer.eos_token_id,
             do_sample=True,
-            temperature=0.7
+            top_p=0.9,
+            temperature=0.8
         )
-    text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return text.replace(prompt, "").strip()
+    bot_text = tokenizer.decode(output_ids[0], skip_special_tokens=True)
+    bot_text = bot_text[len(user_text):].strip()  # Remove user input
 
-# Generate response
-if st.button("Ask") and st.session_state.input_text.strip() != "":
-    user_input = st.session_state.input_text.strip()
-    prompt = f"{LEADERS[leader]}\nUser: {user_input}\n{leader}:"
-    response = generate_response(prompt)
-    st.session_state.history.append({"sender": "user", "text": user_input})
-    st.session_state.history.append({"sender": "bot", "text": response})
-    st.session_state.input_text = ""
+    st.session_state.history.append({"sender": "bot", "text": bot_text})
+    st.session_state.input_text = ""  # Clear input box
 
-# Show chat history
-for chat in st.session_state.history:
-    if chat["sender"] == "user":
-        st.markdown(f"**You:** {chat['text']}")
+# -------------------------------
+# Display chat history
+# -------------------------------
+for message in st.session_state.history:
+    if message["sender"] == "user":
+        st.markdown(f"**You:** {message['text']}")
     else:
-        st.markdown(f"**{leader}:** {chat['text']}")
+        st.markdown(f"**Bot:** {message['text']}")
+
