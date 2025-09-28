@@ -128,14 +128,16 @@ Answer directly and stay on topic, avoid repetition, avoid unrelated info.
 User asks: {user_input.strip()}
 Answer:"""
 
-            # Generate response
-            output = chatbot_model(prompt, max_length=200, do_sample=True, temperature=0.7)[0]["generated_text"]
-            reply = output.replace(prompt, "").strip()
+            # Generate response safely
+            try:
+                output = chatbot_model(prompt, max_length=200, do_sample=True, temperature=0.7)[0]["generated_text"]
+                reply = output.replace(prompt, "").strip()
+            except Exception:
+                reply = "Sorry, I couldn't generate a response right now."
 
             # Append bot reply
             st.session_state.history.append({"sender": "bot", "text": reply, "leader": sel})
 
             # Clear input field
             st.session_state.input_text = ""
-
 
