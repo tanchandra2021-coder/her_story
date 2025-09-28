@@ -2,106 +2,58 @@ import streamlit as st
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 
-# ---------------------
-# Initialize session state
-# ---------------------
+# -------------------------
+# Session state
+# -------------------------
 if "history" not in st.session_state:
     st.session_state.history = []
 
 if "input_text" not in st.session_state:
     st.session_state.input_text = ""
 
-# Trigger for rerendering
-if "rerun" not in st.session_state:
-    st.session_state.rerun = False
+if "selected_leader" not in st.session_state:
+    st.session_state.selected_leader = "Michelle Obama"
 
-# ---------------------
-# Load model and tokenizer
-# ---------------------
-@st.cache_resource(show_spinner=False)
+# -------------------------
+# Leader personalities
+# -------------------------
+LEADERS = {
+    "Michelle Obama": {
+        "description": "Policy-minded, empathetic mentor",
+        "prompt_intro": "You are Michelle Obama, a policy-minded and empathetic mentor. Speak cordially and give clear, accurate finance advice. Answer directly and stay on topic."
+    },
+    "Frida Kahlo": {
+        "description": "Reflective, artistic, metaphor-driven",
+        "prompt_intro": "You are Frida Kahlo, a reflective, artistic mentor. Speak cordially, use metaphors, and give clear finance advice."
+    },
+    "Marie Curie": {
+        "description": "Scientific, evidence-first",
+        "prompt_intro": "You are Marie Curie, scientific and evidence-first. Speak cordially and give clear, data-backed finance advice."
+    },
+    "Rosa Parks": {
+        "description": "Calm, principled, concise",
+        "prompt_intro": "You are Rosa Parks, calm, principled, and concise. Give direct finance advice in a cordial tone."
+    },
+    "Malala Yousafzai": {
+        "description": "Educator, clear, empowering",
+        "prompt_intro": "You are Malala Yousafzai, a clear and empowering educator. Give cordial, actionable finance advice."
+    }
+}
+
+# -------------------------
+# Load model
+# -------------------------
+@st.cache_resource(show_spinner=True)
 def load_model():
-    model_name = "gpt2"  # replace with your desired model
+    model_name = "EleutherAI/gpt-j-6B"  # Or use smaller model for testing
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name)
+    model.eval()
     return tokenizer, model
 
 tokenizer, model = load_model()
 
-# ---------------------
-# Female leaders dataset (replace/add as needed)
-# ---------------------
-female_leaders = [
-    "Ada Lovelace",
-    "Marie Curie",
-    "Malala Yousafzai",
-    "Kamala Harris",
-    "Jacinda Ardern",
-    "Ruth Bader Ginsburg",
-    "Angela Merkel",
-]
+# -------------------------
+# Generate response
 
-# ---------------------
-# Generate bot response
-# ---------------------
-def generate_response(prompt):
-    inputs = tokenizer.encode(prompt, return_tensors="pt")
-    with torch.no_grad():
-        outputs = model.generate(
-            inputs,
-            max_new_tokens=150,
-            pad_token_id=tokenizer.eos_token_id
-        )
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    # Extract only new part
-    response_text = response[len(prompt):].strip()
-    return response_text
-
-# ---------------------
-# Sidebar
-# ---------------------
-st.sidebar.title("Her Story Chatbot 💬")
-st.sidebar.markdown(
-    """
-    This chatbot tells stories of **female leaders** throughout history.
-    You can type anything and explore the stories!
-    """
-)
-
-# ---------------------
-# Main UI
-# ---------------------
-st.title("Her Story Chatbot 💬")
-
-# Display chat history
-for entry in st.session_state.history:
-    if entry["sender"] == "user":
-        st.markdown(f"**You:** {entry['text']}")
-    else:
-        st.markdown(f"**Bot:** {entry['text']}")
-
-# Input form
-with st.form(key="input_form", clear_on_submit=True):
-    user_input = st.text_input("You:", st.session_state.input_text)
-    submit_button = st.form_submit_button(label="Send")
-
-if submit_button and user_input.strip():
-    # Echo user message
-    st.session_state.history.append({"sender": "user", "text": user_input})
-
-    # Prepare prompt with context
-    context = "\n".join(
-        [f"{entry['sender']}: {entry['text']}" for entry in st.session_state.history]
-    )
-    prompt = f"{context}\nBot:"
-
-    # Generate response
-    bot_response = generate_response(prompt)
-
-    # Append bot response
-    st.session_state.history.append({"sender": "bot", "text": bot_response})
-
-    # Trigger rerun
-    st.session_state.input_text = ""
-    st.session_state.rerun = not st.session_state.rerun
-    st.experimental_rerun() if hasattr(st, "experimental_rerun") else None
 
