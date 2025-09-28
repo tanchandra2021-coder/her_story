@@ -38,10 +38,10 @@ PERSONALITIES = {
 
 DEFAULT_LEADER = list(LEADERS.keys())[0]
 
-# ---------- Load the model ----------
+# ---------- Load GPT-Neo 1.3B ----------
 @st.cache_resource
 def load_model():
-    return pipeline("text-generation", model="EleutherAI/gpt-neo-125M", device=-1)
+    return pipeline("text-generation", model="EleutherAI/gpt-neo-1.3B", device=-1)
 
 chatbot_model = load_model()
 
@@ -128,13 +128,19 @@ with col2:
             # Append user message
             st.session_state.history.append({"sender": "user", "text": user_input.strip()})
 
-            # Generate personality-driven response
-            prompt = f"You are {sel}. {PERSONALITIES[sel]}\nUser asks: {user_input.strip()}\nAnswer warmly and helpfully:"
-            output = chatbot_model(prompt, max_length=150, do_sample=True, temperature=0.7)[0]["generated_text"]
-            # remove prompt from output
+            # Personality-driven prompt
+            prompt = f"""
+You are {sel}, a famous female leader and mentor. Speak cordially and in your personality.
+You give clear, accurate, concise finance advice (stocks, crypto, investing, saving, budgeting).
+Answer directly and stay on topic, avoid repetition, avoid unrelated info.
+
+User asks: {user_input.strip()}
+Answer:"""
+
+            # Generate response
+            output = chatbot_model(prompt, max_length=200, do_sample=True, temperature=0.7)[0]["generated_text"]
             reply = output.replace(prompt, "").strip()
 
             st.session_state.history.append({"sender": "bot", "text": reply, "leader": sel})
             st.session_state.input_text = ""
             st.experimental_rerun()
-
