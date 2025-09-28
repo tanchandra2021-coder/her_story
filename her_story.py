@@ -2,72 +2,106 @@ import streamlit as st
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 
-# -------------------------------
-# App configuration
-# -------------------------------
-st.set_page_config(page_title="Her Story Chat", page_icon="💬")
-
-st.title("Her Story Chatbot 💬")
-
-# -------------------------------
-# Session state initialization
-# -------------------------------
+# ---------------------
+# Initialize session state
+# ---------------------
 if "history" not in st.session_state:
     st.session_state.history = []
 
 if "input_text" not in st.session_state:
     st.session_state.input_text = ""
 
-# -------------------------------
-# Model loading
-# -------------------------------
-MODEL_NAME = "EleutherAI/gpt-neo-125M"  # Small, safe for free-tier
+# Trigger for rerendering
+if "rerun" not in st.session_state:
+    st.session_state.rerun = False
 
-@st.cache_resource
+# ---------------------
+# Load model and tokenizer
+# ---------------------
+@st.cache_resource(show_spinner=False)
 def load_model():
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME)
-    model.eval()
+    model_name = "gpt2"  # replace with your desired model
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name)
     return tokenizer, model
 
 tokenizer, model = load_model()
 
-# -------------------------------
-# Chat input
-# -------------------------------
-st.session_state.input_text = st.text_input(
-    "You:", value=st.session_state.input_text, key="input_box"
+# ---------------------
+# Female leaders dataset (replace/add as needed)
+# ---------------------
+female_leaders = [
+    "Ada Lovelace",
+    "Marie Curie",
+    "Malala Yousafzai",
+    "Kamala Harris",
+    "Jacinda Ardern",
+    "Ruth Bader Ginsburg",
+    "Angela Merkel",
+]
+
+# ---------------------
+# Generate bot response
+# ---------------------
+def generate_response(prompt):
+    inputs = tokenizer.encode(prompt, return_tensors="pt")
+    with torch.no_grad():
+        outputs = model.generate(
+            inputs,
+            max_new_tokens=150,
+            pad_token_id=tokenizer.eos_token_id
+        )
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    # Extract only new part
+    response_text = response[len(prompt):].strip()
+    return response_text
+
+# ---------------------
+# Sidebar
+# ---------------------
+st.sidebar.title("Her Story Chatbot 💬")
+st.sidebar.markdown(
+    """
+    This chatbot tells stories of **female leaders** throughout history.
+    You can type anything and explore the stories!
+    """
 )
 
-if st.session_state.input_text:
-    user_text = st.session_state.input_text.strip()
-    st.session_state.history.append({"sender": "user", "text": user_text})
+# ---------------------
+# Main UI
+# ---------------------
+st.title("Her Story Chatbot 💬")
 
-    # ---------------------------
-    # Generate bot response
-    # ---------------------------
-    input_ids = tokenizer.encode(user_text + tokenizer.eos_token, return_tensors="pt")
-    with torch.no_grad():
-        output_ids = model.generate(
-            input_ids,
-            max_new_tokens=100,
-            pad_token_id=tokenizer.eos_token_id,
-            do_sample=True,
-            top_p=0.9,
-            temperature=0.8
-        )
-    bot_text = tokenizer.decode(output_ids[0], skip_special_tokens=True)
-    bot_text = bot_text[len(user_text):].strip()  # Remove user input
-
-    st.session_state.history.append({"sender": "bot", "text": bot_text})
-    st.session_state.input_text = ""  # Clear input box
-
-# -------------------------------
 # Display chat history
-# -------------------------------
-for message in st.session_state.history:
-    if message["sender"] == "user":
-        st.markdown(f"**You:** {message['text']}")
+for entry in st.session_state.history:
+    if entry["sender"] == "user":
+        st.markdown(f"**You:** {entry['text']}")
     else:
-        st.markdown(f"**Bot:** {message['text']}")
+        st.markdown(f"**Bot:** {entry['text']}")
+
+# Input form
+with st.form(key="input_form", clear_on_submit=True):
+    user_input = st.text_input("You:", st.session_state.input_text)
+    submit_button = st.form_submit_button(label="Send")
+
+if submit_button and user_input.strip():
+    # Echo user message
+    st.session_state.history.append({"sender": "user", "text": user_input})
+
+    # Prepare prompt with context
+    context = "\n".join(
+        [f"{entry['sender']}: {entry['text']}" for entry in st.session_state.history]
+    )
+    prompt = f"{context}\nBot:"
+
+    # Generate response
+    bot_response = generate_response(prompt)
+
+    # Append bot response
+    st.session_state.history.append({"sender": "bot", "text": bot_response})
+
+    # Trigger rerun
+    st.session_state.input_text = ""
+    st.session_state.rerun = not st.session_state.rerun
+    st.experimental_rerun() if hasattr(st, "experimental_rerun") else None
 
