@@ -1,5 +1,4 @@
 import streamlit as st
-from PIL import Image
 import random
 
 st.set_page_config(page_title="Finance Advisors — Women Leaders", page_icon="💼", layout="wide")
@@ -60,8 +59,10 @@ if "history" not in st.session_state:
     st.session_state.history = []  # list of dicts: {sender:'user'|'bot', leader, text}
 if "selected" not in st.session_state:
     st.session_state.selected = DEFAULT_LEADER
+if "input_text" not in st.session_state:
+    st.session_state.input_text = ""
 
-# ---------- CSS for modern chat ----------
+# ---------- CSS for chat ----------
 st.markdown(
     """
     <style>
@@ -145,7 +146,12 @@ with col2:
 
     # -------- Input using st.form for reliable submission --------
     with st.form(key="chat_form", clear_on_submit=True):
-        user_input = st.text_area(" ", value=st.session_state.get("input_text", ""), placeholder="Type your question...", height=90)
+        user_input = st.text_area(
+            " ", 
+            value=st.session_state.get("input_text", ""), 
+            placeholder="Type your question...", 
+            height=90
+        )
         submitted = st.form_submit_button("Send")
         if submitted and user_input.strip():
             msg = user_input.strip()
@@ -153,4 +159,3 @@ with col2:
             reply = random.choice(LEADERS[sel]["responses"])
             st.session_state.history.append({"sender": "bot", "text": reply, "leader": sel})
             st.session_state.input_text = ""  # clear quick prompt
-            st.experimental_rerun()
